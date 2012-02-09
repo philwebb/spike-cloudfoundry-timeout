@@ -27,9 +27,6 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
-import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitor;
-import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
-import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.MonitoredHttpServletResponseWrapper;
 
 /**
  * Tests for {@link MonitoredHttpServletResponseWrapper}.
@@ -38,10 +35,10 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.MonitoredHttpSe
  */
 public class MonitoredHttpServletResponseWrapperTest {
 
-	private MonitoredHttpServletResponseWrapper wrapper;
-
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
+
+	private MonitoredHttpServletResponseWrapper wrapper;
 
 	@Mock
 	private HttpServletResponse response;
