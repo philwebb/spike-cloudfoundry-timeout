@@ -3,10 +3,11 @@ package org.springsource.pwebb.spike.cloudfoundry.timeout.monitor;
 /**
  * Factory used to create {@link HttpServletResponseMonitor}s.
  * 
+ * @param <T> The actual {@link HttpServletResponseMonitor} type created by the factory
+ * 
  * @see HttpServletResponseMonitor
  * @see MonitoredHttpServletResponseWrapper
  * 
- * @param <T> The actual {@link HttpServletResponseMonitor} type created by the factory
  * @author Phillip Webb
  */
 public interface HttpServletResponseMonitorFactory<T extends HttpServletResponseMonitor> {
