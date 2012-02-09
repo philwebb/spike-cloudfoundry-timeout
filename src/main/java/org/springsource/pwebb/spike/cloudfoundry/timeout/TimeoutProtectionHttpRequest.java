@@ -7,7 +7,7 @@ import org.springframework.http.HttpRequest;
 import org.springframework.util.StringUtils;
 
 /**
- * Encapsulates details of a {@link HttpRequest} that includes a CloudFoundry timeout protection header.
+ * Encapsulates details of a {@link HttpRequest} that includes a Cloud Foundry timeout protection header.
  * 
  * @author Phillip Webb
  */
@@ -101,5 +101,4 @@ public class TimeoutProtectionHttpRequest {
 		}
 		return null;
 	}
-
 }

@@ -20,6 +20,8 @@ import org.springframework.web.util.WebUtils;
  * monitor is lazily created on the first suitable response invocation using the specified
  * {@link HttpServletResponseMonitorFactory}.
  * 
+ * @see HttpServletResponseMonitor
+ * 
  * @author Phillip Webb
  */
 public class MonitoredHttpServletResponseWrapper extends HttpServletResponseWrapper {
