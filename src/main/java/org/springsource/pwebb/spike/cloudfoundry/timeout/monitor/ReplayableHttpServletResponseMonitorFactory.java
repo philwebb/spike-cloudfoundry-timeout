@@ -35,6 +35,9 @@ public class ReplayableHttpServletResponseMonitorFactory implements
 		METHOD_HANDLERS.add(new WriteBytesMethodHandler());
 		METHOD_HANDLERS.add(new WriteBytesWithOffsetMethodHandler());
 		METHOD_HANDLERS.add(new ReplayMethodHandler());
+		METHOD_HANDLERS.add(new EqualsMethodHandler());
+		METHOD_HANDLERS.add(new HashCodeMethodHandler());
+		METHOD_HANDLERS.add(new ToStringMethodHandler());
 		METHOD_HANDLERS.add(new DirectlyMappedMethodHandler());
 	}
 
@@ -253,6 +256,50 @@ public class ReplayableHttpServletResponseMonitorFactory implements
 				throws Throwable {
 			invocations.replay((HttpServletResponse) args[0]);
 			return null;
+		}
+	}
+
+	/**
+	 * {@link MethodHandler} to deal with {@link Object#equals(Object)}.
+	 */
+	private static class EqualsMethodHandler extends AbstractMethodHandler {
+
+		public EqualsMethodHandler() {
+			super("equals", Object.class);
+		}
+
+		public Object invoke(ReplayableInvocations invocations, Object proxy, Method method, Object[] args)
+				throws Throwable {
+			return proxy == args[0];
+		}
+	}
+
+	/**
+	 * {@link MethodHandler} to deal with {@link Object#hashCode()}.
+	 */
+	private static class HashCodeMethodHandler extends AbstractMethodHandler {
+		public HashCodeMethodHandler() {
+			super("hashCode");
+		}
+
+		public Object invoke(ReplayableInvocations invocations, Object proxy, Method method, Object[] args)
+				throws Throwable {
+			return new Integer(System.identityHashCode(proxy));
+		}
+	}
+
+	/**
+	 * {@link MethodHandler} to deal with {@link Object#toString()}.
+	 */
+	private static class ToStringMethodHandler extends AbstractMethodHandler {
+
+		public ToStringMethodHandler() {
+			super("toString");
+		}
+
+		public Object invoke(ReplayableInvocations invocations, Object proxy, Method method, Object[] args)
+				throws Throwable {
+			return proxy.getClass().getName() + '@' + Integer.toHexString(proxy.hashCode());
 		}
 	}
 

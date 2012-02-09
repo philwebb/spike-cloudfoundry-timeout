@@ -1,6 +1,9 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout.monitor;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.assertThat;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
@@ -238,6 +241,24 @@ public class ReplayableHttpServletResponseMonitorFactoryTest {
 		assertThat(this.responseOutputStream.toByteArray(), is(new byte[] { 0, 1, 2, 3 }));
 	}
 
-	// FIXME equals hash code ?
+	@Test
+	public void shouldSupportEquals() throws Exception {
+		ReplayableHttpServletResponseMonitor monitor1 = new ReplayableHttpServletResponseMonitorFactory().getMonitor();
+		ReplayableHttpServletResponseMonitor monitor2 = new ReplayableHttpServletResponseMonitorFactory().getMonitor();
+		assertThat(monitor1, is(equalTo(monitor1)));
+		assertThat(monitor1, is(not(equalTo(monitor2))));
+	}
 
+	@Test
+	public void shouldSupportHashCode() throws Exception {
+		ReplayableHttpServletResponseMonitor monitor1 = new ReplayableHttpServletResponseMonitorFactory().getMonitor();
+		ReplayableHttpServletResponseMonitor monitor2 = new ReplayableHttpServletResponseMonitorFactory().getMonitor();
+		assertThat(monitor1.hashCode(), is(equalTo(monitor1.hashCode())));
+		assertThat(monitor1.hashCode(), is(not(equalTo(monitor2.hashCode()))));
+	}
+
+	@Test
+	public void shouldSupportToString() throws Exception {
+		assertThat(this.monitor.toString(), is(notNullValue()));
+	}
 }
