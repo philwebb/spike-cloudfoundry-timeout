@@ -1,5 +1,7 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout;
 
+import javax.servlet.http.HttpServletResponse;
+
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
 
 /**
@@ -24,5 +26,7 @@ public interface TimeoutProtector {
 	 * @param monitor the monitor returned from {@link #getMonitorFactory(TimeoutProtectionHttpRequest)}
 	 */
 	void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor);
+
+	void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response);
 
 }

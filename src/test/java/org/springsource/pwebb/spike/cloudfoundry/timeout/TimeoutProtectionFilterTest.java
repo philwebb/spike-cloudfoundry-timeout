@@ -111,8 +111,18 @@ public class TimeoutProtectionFilterTest {
 		verify(this.protector).cleanup(any(TimeoutProtectionHttpRequest.class), eq(this.monitorFactory));
 	}
 
+	@Test
+	public void shouldHandlePoll() throws Exception {
+		setupPollRequest();
+		this.filter.doFilter(this.request, this.response, this.chain);
+		verify(this.protector).handlePoll(any(TimeoutProtectionHttpRequest.class), eq(this.response));
+	}
+
 	private void setupInitialRequest() {
 		given(this.request.getHeader(TimeoutProtectionHttpRequest.Type.INITIAL_REQUEST.value())).willReturn(UID);
 	}
 
+	private void setupPollRequest() {
+		given(this.request.getHeader(TimeoutProtectionHttpRequest.Type.POLL.value())).willReturn(UID);
+	}
 }

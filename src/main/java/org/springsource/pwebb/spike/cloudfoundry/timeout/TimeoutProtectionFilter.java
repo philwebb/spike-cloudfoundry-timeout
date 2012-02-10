@@ -11,6 +11,7 @@ import javax.servlet.ServletResponse;
 import javax.servlet.http.HttpServletResponse;
 
 import org.springframework.util.Assert;
+import org.springsource.pwebb.spike.cloudfoundry.timeout.TimeoutProtectionHttpRequest.Type;
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.MonitoredHttpServletResponseWrapper;
 
@@ -33,11 +34,19 @@ public class TimeoutProtectionFilter implements Filter {
 			ServletException {
 		Assert.state(this.protector != null, "Please set the TimeoutProtector");
 		TimeoutProtectionHttpRequest timeoutProtectionRequest = TimeoutProtectionHttpRequest.get(request);
+
 		if (timeoutProtectionRequest == null) {
 			chain.doFilter(request, response);
-		} else {
-			doFilter(timeoutProtectionRequest, (HttpServletResponse) response, chain);
+			return;
 		}
+
+		if (timeoutProtectionRequest.getType() == Type.POLL) {
+			this.protector.handlePoll(timeoutProtectionRequest, (HttpServletResponse) response);
+			return;
+		}
+
+		doFilter(timeoutProtectionRequest, (HttpServletResponse) response, chain);
+
 	}
 
 	private void doFilter(TimeoutProtectionHttpRequest request, HttpServletResponse response, FilterChain chain)
