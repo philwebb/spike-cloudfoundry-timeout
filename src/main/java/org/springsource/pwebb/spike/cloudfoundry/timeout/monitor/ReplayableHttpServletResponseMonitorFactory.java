@@ -2,7 +2,10 @@ package org.springsource.pwebb.spike.cloudfoundry.timeout.monitor;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.Serializable;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -16,7 +19,8 @@ import org.springframework.util.FileCopyUtils;
 
 /**
  * {@link HttpServletResponseMonitorFactory} that can be used to create a {@link ReplayableHttpServletResponseMonitor}
- * instance.
+ * instance. The {@link ReplayableHttpServletResponseMonitor#getReplayableResponse() responses} returned by this
+ * Implementation are {@link Serializable}.
  * 
  * @author Phillip Webb
  */
@@ -43,7 +47,7 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 
 	@Override
 	protected HttpServletResponseBridge newResponseBridge() {
-		return new ReplayableHttpServletResponseBridge();
+		return new ReplayableHttpServletResponseImpl();
 	}
 
 	/**
@@ -51,7 +55,8 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 	 * that they happen with the exception of {@link OutputStream} <tt>write</tt> methods, these will be collated into a
 	 * single write operation.
 	 */
-	private static class ReplayableHttpServletResponseBridge implements HttpServletResponseBridge {
+	private static class ReplayableHttpServletResponseImpl implements ReplayableHttpServletResponse,
+			HttpServletResponseBridge, Serializable {
 
 		private List<ReplayableInvocation> replayableInvocations = new ArrayList<ReplayableInvocation>();
 
@@ -83,9 +88,9 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 		/**
 		 * Replay all invocations to the specified response.
 		 * @param response the response used to replay invocation
-		 * @throws Throwable
+		 * @throws IOException
 		 */
-		public void replay(HttpServletResponse response) throws Throwable {
+		public void replay(HttpServletResponse response) throws IOException {
 			for (ReplayableInvocation replayableInvocation : this.replayableInvocations) {
 				replayableInvocation.replay(response);
 			}
@@ -95,14 +100,14 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 	/**
 	 * A single {@link ReplayableInvocation}.
 	 */
-	private static interface ReplayableInvocation {
+	private static interface ReplayableInvocation extends Serializable {
 
 		/**
 		 * Replay the invocation
 		 * @param response the response used to replay invocation
-		 * @throws Throwable
+		 * @throws IOException
 		 */
-		void replay(HttpServletResponse response) throws Throwable;
+		void replay(HttpServletResponse response) throws IOException;
 	}
 
 	/**
@@ -118,8 +123,12 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 			this.args = args;
 		}
 
-		public void replay(HttpServletResponse response) throws Throwable {
-			this.method.invoke(response, this.args);
+		public void replay(HttpServletResponse response) {
+			try {
+				this.method.invoke(response, this.args);
+			} catch (Exception e) {
+				throw new IllegalStateException(e);
+			}
 		}
 	}
 
@@ -128,16 +137,29 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 	 */
 	private static class ReplayableOutputStreamInvocation implements ReplayableInvocation {
 
-		private ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+		private transient ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
 		public OutputStream getOutputStream() {
 			return this.outputStream;
 		}
 
-		public void replay(HttpServletResponse response) throws Throwable {
+		public void replay(HttpServletResponse response) throws IOException {
 			ServletOutputStream servletOutputStream = response.getOutputStream();
 			FileCopyUtils.copy(this.outputStream.toByteArray(), servletOutputStream);
 			servletOutputStream.flush();
+		}
+
+		private void writeObject(ObjectOutputStream objectOutputStream) throws IOException {
+			objectOutputStream.defaultWriteObject();
+			byte[] bytes = this.outputStream.toByteArray();
+			objectOutputStream.writeObject(bytes);
+		}
+
+		private void readObject(ObjectInputStream objectInputStream) throws ClassNotFoundException, IOException {
+			objectInputStream.defaultReadObject();
+			byte[] bytes = (byte[]) objectInputStream.readObject();
+			this.outputStream = new ByteArrayOutputStream(bytes.length);
+			this.outputStream.write(bytes);
 		}
 	}
 
@@ -146,13 +168,12 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 	 */
 	private static class ReplayMethodHandler extends AbstractMethodHandler {
 		public ReplayMethodHandler() {
-			super("replay", HttpServletResponse.class);
+			super("getReplayableResponse");
 		}
 
 		public Object invoke(HttpServletResponseBridge bridge, Object proxy, Method method, Object[] args)
 				throws Throwable {
-			((ReplayableHttpServletResponseBridge) bridge).replay((HttpServletResponse) args[0]);
-			return null;
+			return bridge;
 		}
 	}
 }
