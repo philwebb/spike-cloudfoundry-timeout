@@ -1,5 +1,6 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout.monitor;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -68,9 +69,9 @@ public abstract class BridgedHttpServletResponseMonitorFactory<T extends HttpSer
 
 	protected static interface HttpServletResponseBridge {
 
-		void invoke(Method method, Object[] args);
+		void invoke(Method method, Object[] args) throws Throwable;
 
-		OutputStream getOutputStream();
+		OutputStream getOutputStream() throws IOException;
 
 	}
 

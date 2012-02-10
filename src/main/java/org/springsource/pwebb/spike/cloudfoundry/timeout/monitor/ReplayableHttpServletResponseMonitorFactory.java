@@ -1,6 +1,7 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout.monitor;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
@@ -60,7 +61,7 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 		 */
 		private ReplayableOutputStreamInvocation outputStreamInvocation;
 
-		public void invoke(Method method, Object[] args) {
+		public void invoke(Method method, Object[] args) throws Throwable {
 			Assert.isTrue(method.getDeclaringClass().isAssignableFrom(HttpServletResponse.class),
 					"Method must be from HttpServletResponse");
 			this.replayableInvocations.add(new ReplayableMethodInvocation(method, args));
@@ -71,7 +72,7 @@ public class ReplayableHttpServletResponseMonitorFactory extends
 		 * {@link OutputStream}.
 		 * @return the output stream
 		 */
-		public OutputStream getOutputStream() {
+		public OutputStream getOutputStream() throws IOException {
 			if (this.outputStreamInvocation == null) {
 				this.outputStreamInvocation = new ReplayableOutputStreamInvocation();
 				this.replayableInvocations.add(this.outputStreamInvocation);
