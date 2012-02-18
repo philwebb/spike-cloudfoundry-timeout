@@ -23,9 +23,6 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
  * receive a poll (for example due to network failure). The {@link #setPollTimeout(long)} method can be used to set the
  * long-poll time for the poll request. This value should obviously be less than the gateway timeout.
  * 
- * <p/>
- * 
- * 
  * @author Phillip Webb
  */
 public class HotSwappingTimeoutProtector implements TimeoutProtector {
@@ -169,7 +166,5 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		public void awaitPollReponseConsumed(long timeout) throws InterruptedException {
 			this.pollResponseConsumedLatch.await(timeout, TimeUnit.MILLISECONDS);
 		}
-
 	}
-
 }
