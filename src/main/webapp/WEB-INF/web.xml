@@ -28,12 +28,12 @@
 	</servlet-mapping>
 
 	<filter>
-		<filter-name>protection</filter-name>
-		<filter-class>org.springframework.pwebb.spike.longpoll.CloudFoundryTimeoutProtectionFilter</filter-class>
+		<filter-name>timeoutProtectionFilter</filter-name>
+		<filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
 	</filter>
 	
 	<filter-mapping>
-		<filter-name>protection</filter-name>
+		<filter-name>timeoutProtectionFilter</filter-name>
 		<servlet-name>dispatcherServlet</servlet-name>
 	</filter-mapping>
 </web-app>

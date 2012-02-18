@@ -2,4 +2,13 @@
 <beans xmlns="http://www.springframework.org/schema/beans"
 	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
 	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.1.xsd">
+
+	<bean id="timeoutProtectionFilter"
+		class="org.springsource.pwebb.spike.cloudfoundry.timeout.TimeoutProtectionFilter">
+		<property name="protector">
+			<bean
+				class="org.springsource.pwebb.spike.cloudfoundry.timeout.HotSwappingTimeoutProtector" />
+		</property>
+	</bean>
+	
 </beans>

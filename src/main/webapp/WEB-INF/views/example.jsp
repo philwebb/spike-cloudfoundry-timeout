@@ -28,7 +28,6 @@
 	</script>
 	<div>
 		<input type="button" value="Ajax" onclick="ajaxButtonClick('ajaxrequest')" />
-		<input type="button" value="Drip" onclick="ajaxButtonClick('ajaxdrip')" />
 	</div>
 	<div>
 		<textarea id="text" rows="40" cols="80">Spring MVC</textarea>

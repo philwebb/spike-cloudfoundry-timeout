@@ -23,7 +23,7 @@
 			var requestId = dojox.uuid.generateRandomUuid();
 			var newArgs = dojo.mixin({}, args);
 			var requestHeader = {
-				"x-cloudfoundry-timout-protection-request-id" : requestId
+				"x-cloudfoundry-timeout-protection-initial-request" : requestId
 			};
 			var timeout = null;
 
@@ -55,7 +55,7 @@
 			function longPollForResult() {
 				originalXhrPost({
 					headers : {
-						"x-cloudfoundry-timout-protection-poll-id" : requestId
+						"x-cloudfoundry-timeout-protection-initial-poll" : requestId
 					},
 					url : args.url,
 					handle : function(result, ioargs) {

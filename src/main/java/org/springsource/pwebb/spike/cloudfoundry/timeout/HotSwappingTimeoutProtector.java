@@ -13,34 +13,53 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.DuplicatingHttp
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitor;
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
 
+/**
+ * {@link TimeoutProtector} that works by hot-swapping the original request with the subsequent poll request. Requests
+ * that take longer than the {@link #setPollThreshold(long) poll threshold} to respond will be protected. The poll
+ * threshold should therefore be set to a value slightly lower than the expected gateway timeout. NOTE: once the poll
+ * threshold has been reached the original response will block until a poll occurs. This ensures that none of the
+ * response data is lost but can cause a response to take slightly longer to respond than would otherwise be the case.
+ * The {@link #setFailTimeout(long)} method should be used to the timeout that will protect against requests that never
+ * receive a poll (for example due to network failure). The {@link #setPollTimeout(long)} method can be used to set the
+ * long-poll time for the poll request. This value should obviously be less than the gateway timeout.
+ * 
+ * <p/>
+ * 
+ * 
+ * @author Phillip Webb
+ */
 public class HotSwappingTimeoutProtector implements TimeoutProtector {
 
-	private static final long POLL_TIMEOUT = 0;
-	protected static final long POLL_THRESHOLD = 0;
-	protected static final long FAIL_TIMEOUT = 0;
+	private long pollTimeout = TimeUnit.SECONDS.toMillis(6);
 
-	private static Map<String, RequestCoordinator> requestCoordinators = new HashMap<String, RequestCoordinator>();
+	private long pollThreshold = TimeUnit.SECONDS.toMillis(14);
+
+	private long failTimeout = TimeUnit.SECONDS.toMillis(30);
+
+	private RequestCoordinators requestCoordinators = new RequestCoordinators();
 
 	public HttpServletResponseMonitorFactory getMonitorFactory(final TimeoutProtectionHttpRequest request) {
 		final long startTime = System.currentTimeMillis();
 		return new HttpServletResponseMonitorFactory<HttpServletResponseMonitor>() {
 			public HttpServletResponseMonitor getMonitor() {
-				if (System.currentTimeMillis() - startTime < POLL_THRESHOLD) {
+				if ((HotSwappingTimeoutProtector.this.pollThreshold != 0)
+						&& (System.currentTimeMillis() - startTime < HotSwappingTimeoutProtector.this.pollThreshold)) {
 					return null;
 				}
-				RequestCoordinator requestCoordinator = getRequestCoordinator(request);
+				RequestCoordinator requestCoordinator = HotSwappingTimeoutProtector.this.requestCoordinators
+						.get(request);
 				HttpServletResponse pollResponse;
 				synchronized (requestCoordinator) {
 					pollResponse = requestCoordinator.consumePollResponse();
 				}
 				if (pollResponse == null) {
 					try {
-						requestCoordinator.awaitPollResponse(FAIL_TIMEOUT);
+						requestCoordinator.awaitPollResponse(HotSwappingTimeoutProtector.this.failTimeout);
 					} catch (InterruptedException e) {
 						throw new IllegalStateException("Timeout waiting for poll", e);
 					}
 					pollResponse = requestCoordinator.consumePollResponse();
-					Assert.notNull(pollResponse, "Unable to consume poll response");
+					Assert.state(pollResponse != null, "Unable to consume poll response");
 				}
 				return new DuplicatingHttpServletResponseMonitorFactory(pollResponse).getMonitor();
 			}
@@ -48,26 +67,26 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 	}
 
 	public void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor) {
-		RequestCoordinator requestCoordinator = getRequestCoordinator(request);
+		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
 		synchronized (requestCoordinator) {
 			if (!requestCoordinator.isPollResponseConsumed()) {
-				deleteRequestCoordinator(request);
+				this.requestCoordinators.delete(request);
 			}
 		}
 	}
 
 	public void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response) {
-		RequestCoordinator requestCoordinator = getRequestCoordinator(request);
+		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
 		synchronized (requestCoordinator) {
 			requestCoordinator.setPollResponse(response);
 		}
 		try {
-			requestCoordinator.awaitPollReponseConsumed(POLL_TIMEOUT);
+			requestCoordinator.awaitPollReponseConsumed(this.pollTimeout);
 		} catch (InterruptedException e) {
 		}
 		synchronized (requestCoordinator) {
 			if (requestCoordinator.isPollResponseConsumed()) {
-				deleteRequestCoordinator(request);
+				this.requestCoordinators.delete(request);
 			} else {
 				requestCoordinator.clearPollResponse();
 				response.setStatus(HttpStatus.NO_CONTENT.value());
@@ -75,25 +94,42 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 	}
 
-	private RequestCoordinator getRequestCoordinator(TimeoutProtectionHttpRequest request) {
-		synchronized (requestCoordinators) {
+	public void setFailTimeout(long failTimeout) {
+		this.failTimeout = failTimeout;
+	}
+
+	public void setPollThreshold(long pollThreshold) {
+		this.pollThreshold = pollThreshold;
+	}
+
+	public void setPollTimeout(long pollTimeout) {
+		this.pollTimeout = pollTimeout;
+	}
+
+	protected void setRequestCoordinators(RequestCoordinators requestCoordinators) {
+		this.requestCoordinators = requestCoordinators;
+	}
+
+	protected static class RequestCoordinators {
+
+		private Map<String, RequestCoordinator> coordinators = new HashMap<String, RequestCoordinator>();
+
+		public synchronized RequestCoordinator get(TimeoutProtectionHttpRequest request) {
 			String uid = request.getUid();
-			RequestCoordinator requestCoordinator = requestCoordinators.get(uid);
+			RequestCoordinator requestCoordinator = this.coordinators.get(uid);
 			if (requestCoordinator == null) {
 				requestCoordinator = new RequestCoordinator();
-				requestCoordinators.put(uid, requestCoordinator);
+				this.coordinators.put(uid, requestCoordinator);
 			}
 			return requestCoordinator;
 		}
-	}
 
-	private void deleteRequestCoordinator(TimeoutProtectionHttpRequest request) {
-		synchronized (requestCoordinators) {
-			requestCoordinators.remove(request.getUid());
+		public synchronized void delete(TimeoutProtectionHttpRequest request) {
+			this.coordinators.remove(request.getUid());
 		}
 	}
 
-	private class RequestCoordinator {
+	protected static class RequestCoordinator {
 
 		private HttpServletResponse pollResponse;
 
@@ -123,7 +159,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 
 		public boolean isPollResponseConsumed() {
-			return isPollResponseConsumed();
+			return this.pollResponseConsumed;
 		}
 
 		public void awaitPollResponse(long timeout) throws InterruptedException {
