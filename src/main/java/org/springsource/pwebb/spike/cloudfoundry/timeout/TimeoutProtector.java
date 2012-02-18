@@ -1,5 +1,7 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout;
 
+import java.io.IOException;
+
 import javax.servlet.http.HttpServletResponse;
 
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
@@ -27,6 +29,6 @@ public interface TimeoutProtector {
 	 */
 	void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor);
 
-	void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response);
+	void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response) throws IOException;
 
 }

@@ -1,5 +1,6 @@
 package org.springsource.pwebb.spike.cloudfoundry.timeout;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -65,6 +66,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 
 	public void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor) {
 		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
+		requestCoordinator.cleanup();
 		synchronized (requestCoordinator) {
 			if (!requestCoordinator.isPollResponseConsumed()) {
 				this.requestCoordinators.delete(request);
@@ -72,7 +74,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 	}
 
-	public void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response) {
+	public void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response) throws IOException {
 		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
 		synchronized (requestCoordinator) {
 			requestCoordinator.setPollResponse(response);
@@ -83,7 +85,13 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 		synchronized (requestCoordinator) {
 			if (requestCoordinator.isPollResponseConsumed()) {
-				this.requestCoordinators.delete(request);
+				try {
+					requestCoordinator.awaitCleanup(this.failTimeout);
+				} catch (InterruptedException e) {
+					throw new IllegalStateException("Timeout waiting for cleanup");
+				} finally {
+					this.requestCoordinators.delete(request);
+				}
 			} else {
 				requestCoordinator.clearPollResponse();
 				response.setStatus(HttpStatus.NO_CONTENT.value());
@@ -136,6 +144,8 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 
 		private CountDownLatch pollResponseConsumedLatch = new CountDownLatch(1);
 
+		private CountDownLatch cleanupLatch = new CountDownLatch(1);
+
 		public void setPollResponse(HttpServletResponse pollResponse) {
 			Assert.state(!this.pollResponseConsumed, "Unable to set an already consumed poll response");
 			this.pollResponse = pollResponse;
@@ -165,6 +175,14 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 
 		public void awaitPollReponseConsumed(long timeout) throws InterruptedException {
 			this.pollResponseConsumedLatch.await(timeout, TimeUnit.MILLISECONDS);
+		}
+
+		public void awaitCleanup(long timeout) throws InterruptedException {
+			this.cleanupLatch.await(timeout, TimeUnit.MICROSECONDS);
+		}
+
+		public void cleanup() {
+			this.cleanupLatch.countDown();
 		}
 	}
 }

@@ -1,12 +1,12 @@
 (function() {
 	var TIMEOUT = 1000 * 60;
-	var originalXhrPost = dojo.xhrPost;
 
 	// Replace XHR methods with long poll aware versions
 	dojo.xhrGet = xhrLongPollOnTimeout(dojo.xhrGet);
 	dojo.xhrPost = xhrLongPollOnTimeout(dojo.xhrPost);
 	dojo.xhrPut = xhrLongPollOnTimeout(dojo.xhrPut);
 	dojo.xhrDelete = xhrLongPollOnTimeout(dojo.xhrDelete);
+	dojo.rawXhrPost = xhrLongPollOnTimeout(dojo.rawXhrPost);
 
 	/**
 	 * Create a new xhr function that switches to long-polling for a response on
@@ -36,7 +36,7 @@
 			newArgs.handle = handleXhr;
 			newArgs.failOk = true;
 
-			// Call the original DOJO implmenetation with our new args
+			// Call the original DOJO implementation with our new args
 			originalXhr(newArgs);
 
 			function handleXhr(result, ioargs) {
@@ -53,9 +53,9 @@
 			}
 
 			function longPollForResult() {
-				originalXhrPost({
+				originalXhr({
 					headers : {
-						"x-cloudfoundry-timeout-protection-initial-poll" : requestId
+						"x-cloudfoundry-timeout-protection-poll" : requestId
 					},
 					url : args.url,
 					handle : function(result, ioargs) {

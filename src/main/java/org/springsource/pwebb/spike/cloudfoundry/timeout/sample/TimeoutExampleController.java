@@ -21,7 +21,7 @@ public class TimeoutExampleController {
 	public String ajaxRequest() {
 		System.out.println("Ajax");
 		try {
-			for (int i = 1; i <= 60; i++) {
+			for (int i = 1; i <= 40; i++) {
 				Thread.sleep(1000);
 				System.out.println("Thinking..." + i);
 			}

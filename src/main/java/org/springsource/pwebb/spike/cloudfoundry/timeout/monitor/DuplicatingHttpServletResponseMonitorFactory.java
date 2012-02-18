@@ -56,6 +56,7 @@ public class DuplicatingHttpServletResponseMonitorFactory extends
 		}
 
 		public OutputStream getOutputStream() throws IOException {
+			System.out.println("Duplicating to " + DuplicatingHttpServletResponseMonitorFactory.this.response);
 			return DuplicatingHttpServletResponseMonitorFactory.this.response.getOutputStream();
 		}
 	}
