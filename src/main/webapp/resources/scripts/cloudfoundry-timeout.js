@@ -71,7 +71,7 @@
                     },
                     url : args.url,
                     handle : function(result, ioargs) {
-                        if (ioargs.xhr.status === 204) {
+                        if (ioargs.xhr.status === 204 && ioargs.xhr.getResponseHeader("x-cloudfoundry-timeout-protection-poll") === requestId) {
                             // No content returned as yet, continue to poll
                             if (timeout) {
                                 longPollForResult(timeout);

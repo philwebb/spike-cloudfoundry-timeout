@@ -94,6 +94,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 				}
 			} else {
 				requestCoordinator.clearPollResponse();
+				response.setHeader(TimeoutProtectionHttpHeader.POLL, request.getUid());
 				response.setStatus(HttpStatus.NO_CONTENT.value());
 			}
 		}

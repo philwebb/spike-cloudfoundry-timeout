@@ -20,12 +20,12 @@ public class TimeoutProtectionHttpRequest {
 		/**
 		 * The initial request.
 		 */
-		INITIAL_REQUEST("x-cloudfoundry-timeout-protection-initial-request"),
+		INITIAL_REQUEST(TimeoutProtectionHttpHeader.INITIAL_REQUEST),
 
 		/**
 		 * A poll request initiated following a timeout.
 		 */
-		POLL("x-cloudfoundry-timeout-protection-poll");
+		POLL(TimeoutProtectionHttpHeader.POLL);
 
 		private String value;
 
