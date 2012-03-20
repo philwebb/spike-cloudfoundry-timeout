@@ -15,7 +15,7 @@
 <body>
 	<script type="text/javascript">
 	function ajaxButtonClick(requestUrl) {
-		dojo.xhrPost({
+		var deferred = dojo.xhrPost({
 			url : requestUrl,
 			load : function(result) {
 				dojo.byId("text").innerHTML += "\n" + result;
@@ -24,6 +24,17 @@
 				dojo.byId("text").innerHTML += "\nERROR :" + result + " " + ioargs.xhr.status;
 			}
 		});
+		
+		deferred.then(
+	        function(result){
+				dojo.byId("text").innerHTML += "\nDeferred Result :" + result;
+	        },
+
+	        function(result){
+				dojo.byId("text").innerHTML += "\nDeferred Error :" + result;
+	        }
+	    );
+		
 	}
 	</script>
 	<div>
