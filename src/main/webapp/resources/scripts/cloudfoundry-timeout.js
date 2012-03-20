@@ -30,7 +30,6 @@
             var requestHeader = {
                 "x-cloudfoundry-timeout-protection-initial-request" : requestId
             };
-            var timeout = null;
 
             // Add a header, remove any load and error functions and attach our
             // own handle
@@ -49,6 +48,7 @@
             return deferred;
 
             function handleXhr(result, ioargs) {
+                var timeout = null;
                 if (ioargs.xhr.status === 504) {
                     // Handle 504 gateway timeout by switching to long polling
                     // Setup an ultimate timeout, this will be cleared on success
@@ -57,14 +57,14 @@
                         timeout = null;
                     }, TIMEOUT);
                     // Start long polling for response
-                    longPollForResult();
+                    longPollForResult(timeout);
                 } else {
                     // If we have no timeout, return the result
                     sendXhrResponse(result, ioargs);
                 }
             }
 
-            function longPollForResult() {
+            function longPollForResult(timeout) {
                 originalXhr({
                     headers : {
                         "x-cloudfoundry-timeout-protection-poll" : requestId
@@ -74,7 +74,7 @@
                         if (ioargs.xhr.status === 204) {
                             // No content returned as yet, continue to poll
                             if (timeout) {
-                                longPollForResult();
+                                longPollForResult(timeout);
                             }
                         } else {
                             // Poll response received, cancel and timeouts and finish
@@ -99,7 +99,7 @@
                     if (dojo.isFunction(args.error)) {
                         args.error(result, ioargs);
                     }
-                    deferred.errorback(result);
+                    deferred.errback(result);
                 }
             }
         };
