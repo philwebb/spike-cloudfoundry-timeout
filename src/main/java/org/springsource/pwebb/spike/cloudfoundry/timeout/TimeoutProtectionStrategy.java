@@ -11,7 +11,7 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
  * 
  * @author Phillip Webb
  */
-public interface TimeoutProtector {
+public interface TimeoutProtectionStrategy {
 
 	/**
 	 * Get the {@link HttpServletResponseMonitorFactory} that should be used to provide timeout protection for the given
@@ -25,10 +25,16 @@ public interface TimeoutProtector {
 	 * Called after the initial response has been written in order to perform any cleanup. This method will be called
 	 * regardless of any exceptions.
 	 * @param request the initial request
-	 * @param monitor the monitor returned from {@link #getMonitorFactory(TimeoutProtectionHttpRequest)}
+	 * @param monitorFactory the monitor returned from {@link #getMonitorFactory(TimeoutProtectionHttpRequest)}
 	 */
-	void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor);
+	void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory);
 
+	/**
+	 * Handle any poll requests from the client.
+	 * @param request the poll request
+	 * @param response the poll response
+	 * @throws IOException
+	 */
 	void handlePoll(TimeoutProtectionHttpRequest request, HttpServletResponse response) throws IOException;
 
 }

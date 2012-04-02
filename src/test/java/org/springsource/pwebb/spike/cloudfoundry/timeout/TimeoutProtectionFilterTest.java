@@ -53,7 +53,7 @@ public class TimeoutProtectionFilterTest {
 	private FilterChain chain;
 
 	@Mock
-	private TimeoutProtector protector;
+	private TimeoutProtectionStrategy protector;
 
 	@Mock
 	private HttpServletResponseMonitorFactory monitorFactory;
@@ -71,10 +71,10 @@ public class TimeoutProtectionFilterTest {
 	}
 
 	@Test
-	public void shouldNeedProtector() throws Exception {
+	public void shouldNeedTimeoutProtectionStrategy() throws Exception {
 		TimeoutProtectionFilter filter = new TimeoutProtectionFilter();
 		this.thrown.expect(IllegalStateException.class);
-		this.thrown.expectMessage("Please set the TimeoutProtector");
+		this.thrown.expectMessage("Please set the TimeoutProtectionStrategy");
 		filter.doFilter(this.request, this.response, this.chain);
 	}
 

@@ -15,10 +15,10 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResponseMonitorFactory;
 
 /**
- * {@link TimeoutProtector} that works by hot-swapping the original request with the subsequent poll request. Requests
- * that take longer than the {@link #setPollThreshold(long) poll threshold} to respond will be protected. The poll
- * threshold should therefore be set to a value slightly lower than the expected gateway timeout. NOTE: once the poll
- * threshold has been reached the original response will block until a poll occurs. This ensures that none of the
+ * {@link TimeoutProtectionStrategy} that works by hot-swapping the original request with the subsequent poll request.
+ * Requests that take longer than the {@link #setPollThreshold(long) poll threshold} to respond will be protected. The
+ * poll threshold should therefore be set to a value slightly lower than the expected gateway timeout. NOTE: once the
+ * poll threshold has been reached the original response will block until a poll occurs. This ensures that none of the
  * response data is lost but can cause a response to take slightly longer to respond than would otherwise be the case.
  * The {@link #setFailTimeout(long)} method should be used to the timeout that will protect against requests that never
  * receive a poll (for example due to network failure). The {@link #setPollTimeout(long)} method can be used to set the
@@ -26,7 +26,7 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
  * 
  * @author Phillip Webb
  */
-public class HotSwappingTimeoutProtector implements TimeoutProtector {
+public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionStrategy {
 
 	private long pollTimeout = TimeUnit.SECONDS.toMillis(6);
 
@@ -40,11 +40,11 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		final long startTime = System.currentTimeMillis();
 		return new HttpServletResponseMonitorFactory<HttpServletResponseMonitor>() {
 			public HttpServletResponseMonitor getMonitor() {
-				if ((HotSwappingTimeoutProtector.this.pollThreshold != 0)
-						&& (System.currentTimeMillis() - startTime < HotSwappingTimeoutProtector.this.pollThreshold)) {
+				if ((HotSwappingTimeoutProtectionStrategy.this.pollThreshold != 0)
+						&& (System.currentTimeMillis() - startTime < HotSwappingTimeoutProtectionStrategy.this.pollThreshold)) {
 					return null;
 				}
-				RequestCoordinator requestCoordinator = HotSwappingTimeoutProtector.this.requestCoordinators
+				RequestCoordinator requestCoordinator = HotSwappingTimeoutProtectionStrategy.this.requestCoordinators
 						.get(request);
 				HttpServletResponse pollResponse;
 				synchronized (requestCoordinator) {
@@ -52,7 +52,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 				}
 				if (pollResponse == null) {
 					try {
-						requestCoordinator.awaitPollResponse(HotSwappingTimeoutProtector.this.failTimeout);
+						requestCoordinator.awaitPollResponse(HotSwappingTimeoutProtectionStrategy.this.failTimeout);
 					} catch (InterruptedException e) {
 						throw new IllegalStateException("Timeout waiting for poll", e);
 					}
@@ -64,7 +64,7 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		};
 	}
 
-	public void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitor) {
+	public void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory) {
 		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
 		requestCoordinator.cleanup();
 		synchronized (requestCoordinator) {
@@ -116,6 +116,9 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		this.requestCoordinators = requestCoordinators;
 	}
 
+	/**
+	 * Maintains a map of {@link RequestCoordinator}s against {@link TimeoutProtectionHttpRequest}s.
+	 */
 	protected static class RequestCoordinators {
 
 		private Map<String, RequestCoordinator> coordinators = new HashMap<String, RequestCoordinator>();
@@ -135,22 +138,33 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 	}
 
+	protected static enum CoordinatedEvent {
+		POLL_RESPONSE, POLL_RESPONSE_CONSUMED, CLEANUP
+	};
+
+	/**
+	 * A single coordinator used to manage access to a {@link TimeoutProtectionHttpRequest}. The coordinator object
+	 * should be used as the lock for synchronized blocks to prevent concurrent updates.
+	 */
 	protected static class RequestCoordinator {
 
 		private HttpServletResponse pollResponse;
 
 		private volatile boolean pollResponseConsumed;
 
-		private CountDownLatch pollResponseLatch = new CountDownLatch(1);
+		private Map<CoordinatedEvent, CountDownLatch> latches;
 
-		private CountDownLatch pollResponseConsumedLatch = new CountDownLatch(1);
-
-		private CountDownLatch cleanupLatch = new CountDownLatch(1);
+		public RequestCoordinator() {
+			this.latches = new HashMap<CoordinatedEvent, CountDownLatch>();
+			for (CoordinatedEvent event : CoordinatedEvent.values()) {
+				this.latches.put(event, new CountDownLatch(1));
+			}
+		}
 
 		public void setPollResponse(HttpServletResponse pollResponse) {
 			Assert.state(!this.pollResponseConsumed, "Unable to set an already consumed poll response");
 			this.pollResponse = pollResponse;
-			this.pollResponseLatch.countDown();
+			signal(CoordinatedEvent.POLL_RESPONSE);
 		}
 
 		public void clearPollResponse() {
@@ -161,9 +175,13 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		public HttpServletResponse consumePollResponse() {
 			if (this.pollResponse != null) {
 				this.pollResponseConsumed = true;
-				this.pollResponseConsumedLatch.countDown();
+				signal(CoordinatedEvent.POLL_RESPONSE_CONSUMED);
 			}
 			return this.pollResponse;
+		}
+
+		public void cleanup() {
+			signal(CoordinatedEvent.CLEANUP);
 		}
 
 		public boolean isPollResponseConsumed() {
@@ -171,19 +189,24 @@ public class HotSwappingTimeoutProtector implements TimeoutProtector {
 		}
 
 		public void awaitPollResponse(long timeout) throws InterruptedException {
-			this.pollResponseLatch.await(timeout, TimeUnit.MILLISECONDS);
+			await(CoordinatedEvent.POLL_RESPONSE, timeout);
 		}
 
 		public void awaitPollReponseConsumed(long timeout) throws InterruptedException {
-			this.pollResponseConsumedLatch.await(timeout, TimeUnit.MILLISECONDS);
+			await(CoordinatedEvent.POLL_RESPONSE_CONSUMED, timeout);
 		}
 
 		public void awaitCleanup(long timeout) throws InterruptedException {
-			this.cleanupLatch.await(timeout, TimeUnit.MICROSECONDS);
+			await(CoordinatedEvent.CLEANUP, timeout);
 		}
 
-		public void cleanup() {
-			this.cleanupLatch.countDown();
+		private void signal(CoordinatedEvent event) {
+			this.latches.get(event).countDown();
 		}
+
+		private void await(CoordinatedEvent event, long timeout) throws InterruptedException {
+			this.latches.get(event).await(timeout, TimeUnit.MILLISECONDS);
+		}
+
 	}
 }

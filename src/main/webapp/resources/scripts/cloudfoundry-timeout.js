@@ -1,7 +1,5 @@
 /*jshint dojo:true*/
 
-// FIXME what if the original service returned 204 ?
-
 (function() {
     "use strict";
     var TIMEOUT = 1000 * 60;

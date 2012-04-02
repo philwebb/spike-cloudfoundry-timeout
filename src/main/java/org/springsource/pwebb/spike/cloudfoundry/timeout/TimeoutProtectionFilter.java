@@ -16,13 +16,18 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
 import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.MonitoredHttpServletResponseWrapper;
 
 /**
- * Servlet {@link Filter} that can be used to transparently protect against CloudFoundry gateway timeout errors.
+ * Servlet {@link Filter} that can be used in conjunction with client side JavaScript to transparently protect against
+ * CloudFoundry gateway timeout errors. The filter works on the assumption that the client will handle gateway timeouts
+ * by switching to long polling. For DOJO compatible JavaScript see <tt>cloudfoundry-timeout.js</tt>.
+ * <p>
+ * This filter can support a number of different {@link TimeoutProtectionStrategy strategies} including
+ * {@link HotSwappingTimeoutProtectionStrategy hot swapping} and {@link ReplayingTimeoutProtectionStrategy replay}.
  * 
  * @author Phillip Webb
  */
 public class TimeoutProtectionFilter implements Filter {
 
-	private TimeoutProtector protector;
+	private TimeoutProtectionStrategy strategy;
 
 	public void init(FilterConfig filterConfig) throws ServletException {
 	}
@@ -32,7 +37,8 @@ public class TimeoutProtectionFilter implements Filter {
 
 	public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain) throws IOException,
 			ServletException {
-		Assert.state(this.protector != null, "Please set the TimeoutProtector");
+		Assert.state(this.strategy != null, "Please set the TimeoutProtectionStrategy");
+
 		TimeoutProtectionHttpRequest timeoutProtectionRequest = TimeoutProtectionHttpRequest.get(request);
 
 		if (timeoutProtectionRequest == null) {
@@ -41,27 +47,26 @@ public class TimeoutProtectionFilter implements Filter {
 		}
 
 		if (timeoutProtectionRequest.getType() == Type.POLL) {
-			this.protector.handlePoll(timeoutProtectionRequest, (HttpServletResponse) response);
+			this.strategy.handlePoll(timeoutProtectionRequest, (HttpServletResponse) response);
 			return;
 		}
 
 		doFilter(timeoutProtectionRequest, (HttpServletResponse) response, chain);
-
 	}
 
 	private void doFilter(TimeoutProtectionHttpRequest request, HttpServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
-		HttpServletResponseMonitorFactory monitor = this.protector.getMonitorFactory(request);
+		HttpServletResponseMonitorFactory monitor = this.strategy.getMonitorFactory(request);
 		try {
 			MonitoredHttpServletResponseWrapper monitoredHttpResponse = new MonitoredHttpServletResponseWrapper(
 					response, monitor);
 			chain.doFilter(request.getServletRequest(), monitoredHttpResponse);
 		} finally {
-			this.protector.cleanup(request, monitor);
+			this.strategy.cleanup(request, monitor);
 		}
 	}
 
-	public void setProtector(TimeoutProtector protector) {
-		this.protector = protector;
+	public void setProtector(TimeoutProtectionStrategy protector) {
+		this.strategy = protector;
 	}
 }
