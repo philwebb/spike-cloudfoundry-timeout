@@ -19,15 +19,15 @@ public interface TimeoutProtectionStrategy {
 	 * @param request the request to protect
 	 * @return a {@link HttpServletResponseMonitorFactory} that should be used with the filtered
 	 */
-	HttpServletResponseMonitorFactory getMonitorFactory(TimeoutProtectionHttpRequest request);
+	HttpServletResponseMonitorFactory handleRequest(TimeoutProtectionHttpRequest request);
 
 	/**
 	 * Called after the initial response has been written in order to perform any cleanup. This method will be called
 	 * regardless of any exceptions.
 	 * @param request the initial request
-	 * @param monitorFactory the monitor returned from {@link #getMonitorFactory(TimeoutProtectionHttpRequest)}
+	 * @param monitorFactory the monitor returned from {@link #handleRequest(TimeoutProtectionHttpRequest)}
 	 */
-	void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory);
+	void afterRequest(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory);
 
 	/**
 	 * Handle any poll requests from the client.

@@ -37,8 +37,8 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	private static final String UUID = "xxxx-xxxx-xxxx-xxxx";
 
 	private static final long FAIL_TIMEOUT = 100;
-	private static final long POLL_TIMEOUT = 200;
-	private static final long POLL_THREASHOLD = 300;
+	private static final long LONG_POLL_TIME = 200;
+	private static final long THRESHOLD = 300;
 
 	@Rule
 	public ExpectedException thrown = ExpectedException.none();
@@ -63,26 +63,26 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	public void setup() {
 		MockitoAnnotations.initMocks(this);
 		this.strategy.setRequestCoordinators(this.requestCoordinators);
+		this.strategy.setThreshold(THRESHOLD);
 		this.strategy.setFailTimeout(FAIL_TIMEOUT);
-		this.strategy.setPollTimeout(POLL_TIMEOUT);
-		this.strategy.setPollThreshold(POLL_THREASHOLD);
+		this.strategy.setLongPollTime(LONG_POLL_TIME);
 		given(this.requestCoordinators.get(this.request)).willReturn(this.requestCoordinator);
 		given(this.request.getUid()).willReturn(UUID);
 	}
 
 	@Test
 	public void shouldNoUseMonitorIfUnderTimeout() throws Exception {
-		this.strategy.setPollThreshold(100);
-		HttpServletResponseMonitorFactory monitorFactory = this.strategy.getMonitorFactory(this.request);
+		this.strategy.setThreshold(100);
+		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		HttpServletResponseMonitor monitor = monitorFactory.getMonitor();
 		assertThat(monitor, is(nullValue()));
 	}
 
 	@Test
 	public void shouldMonitorIfOverTimeout() throws Exception {
-		this.strategy.setPollThreshold(100);
+		this.strategy.setThreshold(100);
 		given(this.requestCoordinator.consumePollResponse()).willReturn(this.response);
-		HttpServletResponseMonitorFactory monitorFactory = this.strategy.getMonitorFactory(this.request);
+		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		Thread.sleep(150);
 		HttpServletResponseMonitor monitor = monitorFactory.getMonitor();
 		assertThat(monitor, is(not(nullValue())));
@@ -90,18 +90,18 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 
 	@Test
 	public void shouldConsumePollResponseIfAlreadyAvailble() throws Exception {
-		this.strategy.setPollThreshold(0);
+		this.strategy.setThreshold(0);
 		given(this.requestCoordinator.consumePollResponse()).willReturn(this.response);
-		HttpServletResponseMonitorFactory monitorFactory = this.strategy.getMonitorFactory(this.request);
+		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		HttpServletResponseMonitor monitor = monitorFactory.getMonitor();
 		assertThat(monitor, is(not(nullValue())));
 	}
 
 	@Test
 	public void shouldAwaitPollResponse() throws Exception {
-		this.strategy.setPollThreshold(0);
+		this.strategy.setThreshold(0);
 		given(this.requestCoordinator.consumePollResponse()).willReturn(null, this.response);
-		HttpServletResponseMonitorFactory monitorFactory = this.strategy.getMonitorFactory(this.request);
+		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		HttpServletResponseMonitor monitor = monitorFactory.getMonitor();
 		assertThat(monitor, is(not(nullValue())));
 		verify(this.requestCoordinator).awaitPollResponse(FAIL_TIMEOUT);
@@ -109,21 +109,21 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 
 	@Test
 	public void shouldTimeoutAwaitingPollResponse() throws Exception {
-		this.strategy.setPollThreshold(0);
+		this.strategy.setThreshold(0);
 		given(this.requestCoordinator.consumePollResponse()).willReturn(null);
 		willThrow(new InterruptedException()).given(this.requestCoordinator).awaitPollResponse(FAIL_TIMEOUT);
-		HttpServletResponseMonitorFactory monitorFactory = this.strategy.getMonitorFactory(this.request);
+		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		this.thrown.expect(IllegalStateException.class);
 		this.thrown.expectMessage("Timeout waiting for poll");
 		monitorFactory.getMonitor();
 	}
 
 	@Test
-	public void shouldCleanupUnconsumedPollResponse() throws Exception {
+	public void shouldDeleteUnconsumedPollResponse() throws Exception {
 		HttpServletResponseMonitorFactory monitorFactory = mock(HttpServletResponseMonitorFactory.class);
 		given(this.requestCoordinator.isPollResponseConsumed()).willReturn(false);
-		this.strategy.cleanup(this.request, monitorFactory);
-		verify(this.requestCoordinator).cleanup();
+		this.strategy.afterRequest(this.request, monitorFactory);
+		verify(this.requestCoordinator).finish();
 		verify(this.requestCoordinators).delete(this.request);
 	}
 
@@ -140,13 +140,13 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	public void shouldHandleConsumedPollResponse() throws Exception {
 		given(this.requestCoordinator.isPollResponseConsumed()).willReturn(true);
 		this.strategy.handlePoll(this.request, this.response);
-		verify(this.requestCoordinator).awaitCleanup(FAIL_TIMEOUT);
+		verify(this.requestCoordinator).awaitFinish(FAIL_TIMEOUT);
 		verify(this.requestCoordinators).delete(this.request);
 	}
 
 	@Test
 	public void shouldHandleInterruptedWaitingForPollResponseConsumed() throws Exception {
-		willThrow(new InterruptedException()).given(this.requestCoordinator).awaitPollReponseConsumed(POLL_TIMEOUT);
+		willThrow(new InterruptedException()).given(this.requestCoordinator).awaitPollReponseConsumed(LONG_POLL_TIME);
 		given(this.requestCoordinator.isPollResponseConsumed()).willReturn(false);
 		this.strategy.handlePoll(this.request, this.response);
 		verify(this.requestCoordinator).clearPollResponse();
@@ -155,9 +155,9 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	}
 
 	@Test
-	public void shouldHandleInterruptedWatingForCleanup() throws Exception {
+	public void shouldHandleInterruptedWatingForAfterRequest() throws Exception {
 		given(this.requestCoordinator.isPollResponseConsumed()).willReturn(true);
-		willThrow(new InterruptedException()).given(this.requestCoordinator).awaitCleanup(FAIL_TIMEOUT);
+		willThrow(new InterruptedException()).given(this.requestCoordinator).awaitFinish(FAIL_TIMEOUT);
 		try {
 			this.strategy.handlePoll(this.request, this.response);
 			fail("Did not throw");
@@ -235,10 +235,10 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 
 	@Test
 	public void shouldCoordinateCleanupBeforeAwait() throws Exception {
-		this.realRequestCoordinator.cleanup();
+		this.realRequestCoordinator.finish();
 		ThreadAssertion assertion = expectResponseWithin(0, 100, new Call() {
 			public void call() throws Exception {
-				HotSwappingTimeoutProtectionStrategyTest.this.realRequestCoordinator.awaitCleanup(1000);
+				HotSwappingTimeoutProtectionStrategyTest.this.realRequestCoordinator.awaitFinish(1000);
 			}
 		});
 		assertion.verify();
@@ -248,11 +248,11 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	public void shouldCoordinateCleanupAfterAwait() throws Exception {
 		ThreadAssertion assertion = expectResponseWithin(50, 100, new Call() {
 			public void call() throws Exception {
-				HotSwappingTimeoutProtectionStrategyTest.this.realRequestCoordinator.awaitCleanup(1000);
+				HotSwappingTimeoutProtectionStrategyTest.this.realRequestCoordinator.awaitFinish(1000);
 			}
 		});
 		Thread.sleep(50);
-		this.realRequestCoordinator.cleanup();
+		this.realRequestCoordinator.finish();
 		assertion.verify();
 	}
 

@@ -66,7 +66,7 @@ public class TimeoutProtectionFilterTest {
 		MockitoAnnotations.initMocks(this);
 		this.filter = new TimeoutProtectionFilter();
 		this.filter.setProtector(this.protector);
-		given(this.protector.getMonitorFactory(any(TimeoutProtectionHttpRequest.class)))
+		given(this.protector.handleRequest(any(TimeoutProtectionHttpRequest.class)))
 				.willReturn(this.monitorFactory);
 	}
 
@@ -91,7 +91,7 @@ public class TimeoutProtectionFilterTest {
 	public void shouldMonitorHttpResponse() throws Exception {
 		setupInitialRequest();
 		this.filter.doFilter(this.request, this.response, this.chain);
-		verify(this.protector).getMonitorFactory(any(TimeoutProtectionHttpRequest.class));
+		verify(this.protector).handleRequest(any(TimeoutProtectionHttpRequest.class));
 		verify(this.chain).doFilter(eq(this.request), this.responseCaptor.capture());
 		assertThat(this.responseCaptor.getValue(), is(MonitoredHttpServletResponseWrapper.class));
 	}
@@ -100,7 +100,7 @@ public class TimeoutProtectionFilterTest {
 	public void shouldCleanupOnSuccess() throws Exception {
 		setupInitialRequest();
 		this.filter.doFilter(this.request, this.response, this.chain);
-		verify(this.protector).cleanup(any(TimeoutProtectionHttpRequest.class), eq(this.monitorFactory));
+		verify(this.protector).afterRequest(any(TimeoutProtectionHttpRequest.class), eq(this.monitorFactory));
 	}
 
 	@Test
@@ -108,7 +108,7 @@ public class TimeoutProtectionFilterTest {
 		setupInitialRequest();
 		willThrow(new IOException()).given(this.chain).doFilter(this.request, this.response);
 		this.filter.doFilter(this.request, this.response, this.chain);
-		verify(this.protector).cleanup(any(TimeoutProtectionHttpRequest.class), eq(this.monitorFactory));
+		verify(this.protector).afterRequest(any(TimeoutProtectionHttpRequest.class), eq(this.monitorFactory));
 	}
 
 	@Test

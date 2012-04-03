@@ -56,13 +56,13 @@ public class TimeoutProtectionFilter implements Filter {
 
 	private void doFilter(TimeoutProtectionHttpRequest request, HttpServletResponse response, FilterChain chain)
 			throws IOException, ServletException {
-		HttpServletResponseMonitorFactory monitor = this.strategy.getMonitorFactory(request);
+		HttpServletResponseMonitorFactory monitor = this.strategy.handleRequest(request);
 		try {
 			MonitoredHttpServletResponseWrapper monitoredHttpResponse = new MonitoredHttpServletResponseWrapper(
 					response, monitor);
 			chain.doFilter(request.getServletRequest(), monitoredHttpResponse);
 		} finally {
-			this.strategy.cleanup(request, monitor);
+			this.strategy.afterRequest(request, monitor);
 		}
 	}
 

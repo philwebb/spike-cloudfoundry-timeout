@@ -16,32 +16,32 @@ import org.springsource.pwebb.spike.cloudfoundry.timeout.monitor.HttpServletResp
 
 /**
  * {@link TimeoutProtectionStrategy} that works by hot-swapping the original request with the subsequent poll request.
- * Requests that take longer than the {@link #setPollThreshold(long) poll threshold} to respond will be protected. The
- * poll threshold should therefore be set to a value slightly lower than the expected gateway timeout. NOTE: once the
- * poll threshold has been reached the original response will block until a poll occurs. This ensures that none of the
- * response data is lost but can cause a response to take slightly longer to respond than would otherwise be the case.
- * The {@link #setFailTimeout(long)} method should be used to the timeout that will protect against requests that never
- * receive a poll (for example due to network failure). The {@link #setPollTimeout(long)} method can be used to set the
+ * Requests that take longer than the {@link #setThreshold(long) threshold} to respond will be protected. The threshold
+ * should therefore be set to a value slightly lower than the expected gateway timeout. NOTE: once the threshold has
+ * been reached the original response will block until a poll occurs. This ensures that none of the response data is
+ * lost but can cause a request to take slightly longer to respond than would otherwise be the case. The
+ * {@link #setFailTimeout(long)} method should be used to the timeout that will protect against requests that never
+ * receive a poll (for example due to network failure). The {@link #setLongPollTime(long)} method can be used to set the
  * long-poll time for the poll request. This value should obviously be less than the gateway timeout.
  * 
  * @author Phillip Webb
  */
 public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionStrategy {
 
-	private long pollTimeout = TimeUnit.SECONDS.toMillis(6);
+	private long threshold = TimeUnit.SECONDS.toMillis(14);
 
-	private long pollThreshold = TimeUnit.SECONDS.toMillis(14);
+	private long longPollTime = TimeUnit.SECONDS.toMillis(6);
 
 	private long failTimeout = TimeUnit.SECONDS.toMillis(30);
 
 	private RequestCoordinators requestCoordinators = new RequestCoordinators();
 
-	public HttpServletResponseMonitorFactory getMonitorFactory(final TimeoutProtectionHttpRequest request) {
+	public HttpServletResponseMonitorFactory handleRequest(final TimeoutProtectionHttpRequest request) {
 		final long startTime = System.currentTimeMillis();
 		return new HttpServletResponseMonitorFactory<HttpServletResponseMonitor>() {
 			public HttpServletResponseMonitor getMonitor() {
-				if ((HotSwappingTimeoutProtectionStrategy.this.pollThreshold != 0)
-						&& (System.currentTimeMillis() - startTime < HotSwappingTimeoutProtectionStrategy.this.pollThreshold)) {
+				if ((HotSwappingTimeoutProtectionStrategy.this.threshold != 0)
+						&& (System.currentTimeMillis() - startTime < HotSwappingTimeoutProtectionStrategy.this.threshold)) {
 					return null;
 				}
 				RequestCoordinator requestCoordinator = HotSwappingTimeoutProtectionStrategy.this.requestCoordinators
@@ -64,9 +64,9 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 		};
 	}
 
-	public void cleanup(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory) {
+	public void afterRequest(TimeoutProtectionHttpRequest request, HttpServletResponseMonitorFactory monitorFactory) {
 		RequestCoordinator requestCoordinator = this.requestCoordinators.get(request);
-		requestCoordinator.cleanup();
+		requestCoordinator.finish();
 		synchronized (requestCoordinator) {
 			if (!requestCoordinator.isPollResponseConsumed()) {
 				this.requestCoordinators.delete(request);
@@ -80,13 +80,13 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 			requestCoordinator.setPollResponse(response);
 		}
 		try {
-			requestCoordinator.awaitPollReponseConsumed(this.pollTimeout);
+			requestCoordinator.awaitPollReponseConsumed(this.longPollTime);
 		} catch (InterruptedException e) {
 		}
 		synchronized (requestCoordinator) {
 			if (requestCoordinator.isPollResponseConsumed()) {
 				try {
-					requestCoordinator.awaitCleanup(this.failTimeout);
+					requestCoordinator.awaitFinish(this.failTimeout);
 				} catch (InterruptedException e) {
 					throw new IllegalStateException("Timeout waiting for cleanup");
 				} finally {
@@ -100,20 +100,32 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 		}
 	}
 
-	public void setFailTimeout(long failTimeout) {
-		this.failTimeout = failTimeout;
-	}
-
-	public void setPollThreshold(long pollThreshold) {
-		this.pollThreshold = pollThreshold;
-	}
-
-	public void setPollTimeout(long pollTimeout) {
-		this.pollTimeout = pollTimeout;
-	}
-
 	protected void setRequestCoordinators(RequestCoordinators requestCoordinators) {
 		this.requestCoordinators = requestCoordinators;
+	}
+
+	/**
+	 * Set the threshold that must be passed before timeout protection will be used
+	 * @param threshold the threshold in milliseconds
+	 */
+	public void setThreshold(long threshold) {
+		this.threshold = threshold;
+	}
+
+	/**
+	 * Set the maximum amount of time that a single long poll request can take.
+	 * @param longPollTime the long poll time in milliseconds
+	 */
+	public void setLongPollTime(long longPollTime) {
+		this.longPollTime = longPollTime;
+	}
+
+	/**
+	 * Set the amount of time before a request is considered failed.
+	 * @param failTimeout
+	 */
+	public void setFailTimeout(long failTimeout) {
+		this.failTimeout = failTimeout;
 	}
 
 	/**
@@ -139,7 +151,7 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 	}
 
 	protected static enum CoordinatedEvent {
-		POLL_RESPONSE, POLL_RESPONSE_CONSUMED, CLEANUP
+		POLL_RESPONSE, POLL_RESPONSE_CONSUMED, FINISH
 	};
 
 	/**
@@ -180,8 +192,8 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 			return this.pollResponse;
 		}
 
-		public void cleanup() {
-			signal(CoordinatedEvent.CLEANUP);
+		public void finish() {
+			signal(CoordinatedEvent.FINISH);
 		}
 
 		public boolean isPollResponseConsumed() {
@@ -196,8 +208,8 @@ public class HotSwappingTimeoutProtectionStrategy implements TimeoutProtectionSt
 			await(CoordinatedEvent.POLL_RESPONSE_CONSUMED, timeout);
 		}
 
-		public void awaitCleanup(long timeout) throws InterruptedException {
-			await(CoordinatedEvent.CLEANUP, timeout);
+		public void awaitFinish(long timeout) throws InterruptedException {
+			await(CoordinatedEvent.FINISH, timeout);
 		}
 
 		private void signal(CoordinatedEvent event) {
