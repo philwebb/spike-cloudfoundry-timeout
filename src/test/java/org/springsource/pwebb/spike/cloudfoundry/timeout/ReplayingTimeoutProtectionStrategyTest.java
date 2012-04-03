@@ -131,7 +131,6 @@ public class ReplayingTimeoutProtectionStrategyTest {
 		this.strategy.afterRequest(this.secondRequest, monitorFactory);
 		// Poll should not return early
 		timedPollThread.assertTime(100, 200);
-
 	}
 
 	private class TimedPollThread extends Thread {
