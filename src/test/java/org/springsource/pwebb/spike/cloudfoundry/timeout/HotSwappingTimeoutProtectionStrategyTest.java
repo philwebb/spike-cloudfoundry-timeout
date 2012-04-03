@@ -71,7 +71,7 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	}
 
 	@Test
-	public void shouldNoUseMonitorIfUnderTimeout() throws Exception {
+	public void shouldNotUseMonitorIfUnderThreshold() throws Exception {
 		this.strategy.setThreshold(100);
 		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);
 		HttpServletResponseMonitor monitor = monitorFactory.getMonitor();
@@ -79,7 +79,7 @@ public class HotSwappingTimeoutProtectionStrategyTest {
 	}
 
 	@Test
-	public void shouldMonitorIfOverTimeout() throws Exception {
+	public void shouldMonitorIfOverThreshold() throws Exception {
 		this.strategy.setThreshold(100);
 		given(this.requestCoordinator.consumePollResponse()).willReturn(this.response);
 		HttpServletResponseMonitorFactory monitorFactory = this.strategy.handleRequest(this.request);

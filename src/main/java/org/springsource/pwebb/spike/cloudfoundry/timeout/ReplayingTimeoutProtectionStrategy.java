@@ -38,6 +38,10 @@ public class ReplayingTimeoutProtectionStrategy implements TimeoutProtectionStra
 
 	private Map<String, MonitorFactory> completedRequests = new HashMap<String, MonitorFactory>();
 
+	protected final Map<String, MonitorFactory> getCompletedRequests() {
+		return this.completedRequests;
+	}
+
 	public HttpServletResponseMonitorFactory handleRequest(final TimeoutProtectionHttpRequest request) {
 		return new MonitorFactory();
 	}
@@ -73,13 +77,16 @@ public class ReplayingTimeoutProtectionStrategy implements TimeoutProtectionStra
 		String uid = request.getUid();
 		long startTime = System.currentTimeMillis();
 		do {
-			if (!this.completedRequests.containsKey(uid)) {
-				try {
-					this.completedRequests.wait(this.longPollTime);
-				} catch (InterruptedException e) {
+			MonitorFactory completedRequest;
+			synchronized (this.completedRequests) {
+				if (!this.completedRequests.containsKey(uid)) {
+					try {
+						this.completedRequests.wait(this.longPollTime);
+					} catch (InterruptedException e) {
+					}
 				}
+				completedRequest = this.completedRequests.remove(uid);
 			}
-			MonitorFactory completedRequest = this.completedRequests.remove(uid);
 			if (completedRequest != null) {
 				completedRequest.replay(response);
 				return;
